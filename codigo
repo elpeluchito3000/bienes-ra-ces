@@ -1,0 +1,269 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# Colonias y precios proporcionados por el usuario
+colonias_precios = {
+    'Zona Centro': 850000,
+    'Las Haciendas': 780000,
+    'Haciendas del Sol': 790000,
+    'Haciendas de Guadalupe': 770000,
+    'Hacienda Santa Elena': 800000,
+    'Fraccionamiento Las Palmas': 750000,
+    'Fraccionamiento Real de San Isidro': 760000,
+    'Magisterial': 820000,
+    'Lindavista': 790000,
+    'La Loma': 770000,
+    'El Socorro': 760000,
+    'Granados': 780000,
+    'Francisco Villa': 750000,
+    'Morelos': 740000,
+    'La Haciendita': 730000,
+    '20 de Noviembre': 750000,
+    '7 Luminarias': 780000,
+    'Camembaro': 770000,
+    'Jarrón Azul': 765000,
+    'Miravalle': 810000,
+    'Labradores': 740000,
+    'Isabel la Católica': 760000,
+    'Solidaridad': 745000,
+    'Los Pinos': 735000,
+    'El Carmen': 720000,
+    'La Esperanza': 730000,
+    'Ranchos Unidos': 700000,
+    'INFONAVIT San José': 710000,
+    'INFONAVIT Las Arboledas': 715000,
+    'Santa Elena Norte': 730000,
+    'Santa Elena Sur': 740000,
+    'Santa Catarina': 725000,
+    'La Valenciana': 780000,
+    'Colonia Obrera': 690000,
+    'Colonia del Bosque': 770000,
+    'Colonia Los Ángeles': 750000,
+    'Colonia Linda Vista': 775000
+}
+
+# Simulación de datos con patios y antigüedad
+np.random.seed(42)
+
+def generar_datos(n=500):
+    colonias = list(colonias_precios.keys())
+    acabados = ['Económico', 'Estándar', 'Lujo']
+    data = []
+    for _ in range(n):
+        colonia = np.random.choice(colonias)
+        base_price = colonias_precios[colonia]
+        pisos = np.random.choice([1, 2])
+        recamaras = np.random.randint(1, 6)
+        baños = np.random.randint(1, 5)
+        cochera = np.random.randint(0, 3)
+        patios = np.random.randint(0, 3)  # Nuevo
+        antiguedad = np.random.randint(0, 51)  # Nuevo, años de antigüedad
+        acabado = np.random.choice(acabados)
+        metros = np.random.randint(60, 251)
+        mod_pisos = pisos * 0.3
+        mod_recamaras = recamaras * 0.25
+        mod_baños = baños * 0.2
+        mod_cochera = cochera * 0.15
+        mod_patio = patios * 0.1  # Nuevo
+        mod_antiguedad = max(0.5, 1 - antiguedad * 0.01)  # Descuenta 1% por año, mínimo 50%
+        mod_acabado = {'Económico': 0.8, 'Estándar': 1.0, 'Lujo': 1.4}[acabado]
+        mod_metros = metros / 1000
+        precio = base_price * (mod_pisos + mod_recamaras + mod_baños + mod_cochera + mod_patio) * mod_acabado * mod_antiguedad + metros * 3500
+        precio = max(precio, 500000)
+        data.append({
+            'Colonia': colonia,
+            'Pisos': pisos,
+            'Recamaras': recamaras,
+            'Baños': baños,
+            'Cochera': cochera,
+            'Patios': patios,            # Nuevo
+            'Antiguedad': antiguedad,    # Nuevo
+            'Acabados': acabado,
+            'MetrosCuadrados': metros,
+            'Precio': precio
+        })
+    return pd.DataFrame(data)
+
+df = generar_datos()
+
+# Entrenamiento del modelo (agregamos patios y antiguedad)
+categorical_features = ['Colonia', 'Acabados']
+numeric_features = ['Pisos', 'Recamaras', 'Baños', 'Cochera', 'Patios', 'Antiguedad', 'MetrosCuadrados']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features),
+        ('num', 'passthrough', numeric_features)
+    ]
+)
+
+model = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('regressor', LinearRegression())
+])
+
+X = df[categorical_features + numeric_features]
+y = df['Precio']
+model.fit(X, y)
+
+      def predict(self):
+        try:
+            input_data = {
+                'Colonia': [self.colonia_cb.get()],
+                'Pisos': [int(self.pisos_spin.get())],
+                'Recamaras': [int(self.recamaras_spin.get())],
+                'Baños': [int(self.banos_spin.get())],
+                'Cochera': [int(self.cochera_spin.get())],
+                'Patios': [int(self.patios_spin.get())],
+                'Antiguedad': [int(self.antiguedad_spin.get())],
+                'Acabados': [self.acabados_cb.get()],
+                'MetrosCuadrados': [float(self.metros_entry.get())]
+            }
+
+            input_df = pd.DataFrame(input_data)
+            predicted_price = model.predict(input_df)[0]
+            self.result_label.config(text=f"Precio estimado: ${predicted_price:,.2f}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ha ocurrido un error en la predicción:\n{str(e)}")
+
+
+# Aplicación Tkinter
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Predicción de Precio de Vivienda - Valle de Santiago")
+        self.geometry("1000x800")
+        self.resizable(False, False)
+        self.create_widgets()
+        self.create_graph_area()
+        self.plot_histogram()
+        self.plot_scatter()
+        self.plot_bar_patio()
+
+    def create_widgets(self):
+        frame = ttk.Frame(self)
+        frame.pack(padx=10, pady=10, fill='x')
+
+        ttk.Label(frame, text="Colonia:").grid(row=0, column=0, sticky='w')
+        self.colonia_cb = ttk.Combobox(frame, values=sorted(list(colonias_precios.keys())), state='readonly')
+        self.colonia_cb.grid(row=0, column=1, sticky='ew')
+        self.colonia_cb.current(0)
+
+        ttk.Label(frame, text="Número de Pisos:").grid(row=1, column=0, sticky='w')
+        self.pisos_spin = ttk.Spinbox(frame, from_=1, to=3, width=5)
+        self.pisos_spin.grid(row=1, column=1, sticky='w')
+        self.pisos_spin.set(1)
+
+        ttk.Label(frame, text="Número de Recámaras:").grid(row=2, column=0, sticky='w')
+        self.recamaras_spin = ttk.Spinbox(frame, from_=1, to=10, width=5)
+        self.recamaras_spin.grid(row=2, column=1, sticky='w')
+        self.recamaras_spin.set(3)
+
+        ttk.Label(frame, text="Número de Baños:").grid(row=3, column=0, sticky='w')
+        self.banos_spin = ttk.Spinbox(frame, from_=1, to=10, width=5)
+        self.banos_spin.grid(row=3, column=1, sticky='w')
+        self.banos_spin.set(2)
+
+        ttk.Label(frame, text="Número de Cocheras:").grid(row=4, column=0, sticky='w')
+        self.cochera_spin = ttk.Spinbox(frame, from_=0, to=5, width=5)
+        self.cochera_spin.grid(row=4, column=1, sticky='w')
+        self.cochera_spin.set(1)
+
+        ttk.Label(frame, text="Número de Patios:").grid(row=5, column=0, sticky='w')
+        self.patios_spin = ttk.Spinbox(frame, from_=0, to=3, width=5)
+        self.patios_spin.grid(row=5, column=1, sticky='w')
+        self.patios_spin.set(0)
+
+        ttk.Label(frame, text="Antigüedad (años):").grid(row=6, column=0, sticky='w')
+        self.antiguedad_spin = ttk.Spinbox(frame, from_=0, to=100, width=5)
+        self.antiguedad_spin.grid(row=6, column=1, sticky='w')
+        self.antiguedad_spin.set(10)
+
+        ttk.Label(frame, text="Tipo de Acabados:").grid(row=7, column=0, sticky='w')
+        self.acabados_cb = ttk.Combobox(frame, values=['Económico', 'Estándar', 'Lujo'], state='readonly')
+        self.acabados_cb.grid(row=7, column=1, sticky='ew')
+        self.acabados_cb.current(1)
+
+        ttk.Label(frame, text="Metros cuadrados:").grid(row=8, column=0, sticky='w')
+        self.metros_entry = ttk.Entry(frame)
+        self.metros_entry.grid(row=8, column=1, sticky='ew')
+        self.metros_entry.insert(0, "100")
+
+        self.pred_btn = ttk.Button(frame, text="Predecir Precio", command=self.predict)
+        self.pred_btn.grid(row=9, column=0, columnspan=2, pady=10)
+
+        self.result_label = ttk.Label(frame, text="", font=("Arial", 14, "bold"), foreground='green')
+        self.result_label.grid(row=10, column=0, columnspan=2, pady=10)
+
+    def create_graph_area(self):
+        # Crear tres gráficos uno debajo de otro
+        self.fig, (self.ax1, self.ax2, self.ax3) = plt.subplots(3, 1, figsize=(8, 12))
+        self.fig.tight_layout(pad=4)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.canvas.get_tk_widget().pack()
+
+    def plot_histogram(self):
+        self.ax1.clear()
+        self.ax1.hist(df['Precio'], bins=20, color='skyblue', edgecolor='black')
+        self.ax1.set_title('Distribución de Precios')
+        self.ax1.set_xlabel('Precio')
+        self.ax1.set_ylabel('Frecuencia')
+
+    def plot_scatter(self):
+        self.ax2.clear()
+        self.ax2.scatter(df['MetrosCuadrados'], df['Precio'], alpha=0.6, color='orange', edgecolor='black')
+        self.ax2.set_title('Precio vs Metros Cuadrados')
+        self.ax2.set_xlabel('Metros Cuadrados')
+        self.ax2.set_ylabel('Precio')
+
+    def plot_bar_patio(self):
+        self.ax3.clear()
+        avg_precio_patio = df.groupby('Patios')['Precio'].mean()
+        avg_precio_patio.plot(kind='bar', ax=self.ax3, color='lightgreen', edgecolor='black')
+        self.ax3.set_title('Precio Promedio por Número de Patios')
+        self.ax3.set_xlabel('Número de Patios')
+        self.ax3.set_ylabel('Precio Promedio')
+
+    def predict(self):
+        try:
+            colonia = self.colonia_cb.get()
+            pisos = int(self.pisos_spin.get())
+            recamaras = int(self.recamaras_spin.get())
+            banos = int(self.banos_spin.get())
+            cochera = int(self.cochera_spin.get())
+            patios = int(self.patios_spin.get())
+            antiguedad = int(self.antiguedad_spin.get())
+            acabados = self.acabados_cb.get()
+            metros = int(self.metros_entry.get())
+            if metros <= 0:
+                raise ValueError("Metros cuadrados debe ser mayor que cero.")
+
+            X_new = pd.DataFrame([{
+                'Colonia': colonia,
+                'Acabados': acabados,
+                'Pisos': pisos,
+                'Recamaras': recamaras,
+                'Baños': banos,
+                'Cochera': cochera,
+                'Patios': patios,
+                'Antiguedad': antiguedad,
+                'MetrosCuadrados': metros
+            }])
+
+            precio_pred = model.predict(X_new)[0]
+            self.result_label.config(text=f"Precio estimado: ${precio_pred:,.0f} MXN")
+        except Exception as e:
+            messagebox.showerror("Error", f"Datos inválidos: {e}")
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
+
