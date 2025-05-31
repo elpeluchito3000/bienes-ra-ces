@@ -1,0 +1,346 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# Base de datos simulada: colonias y precios promedio base (en pesos MXN)
+# 60 colonias reales y precios estimados por colonia (simulación)
+colonias_precios = {
+    'Zona Centro': 850000,
+    'Las Haciendas': 780000,
+    'Haciendas del Sol': 790000,
+    'Haciendas de Guadalupe': 770000,
+    'Hacienda Santa Elena': 800000,
+    'Fraccionamiento Las Palmas': 750000,
+    'Fraccionamiento Real de San Isidro': 760000,
+    'Magisterial': 820000,
+    'Lindavista': 790000,
+    'La Loma': 770000,
+    'El Socorro': 760000,
+    'Granados': 780000,
+    'Francisco Villa': 750000,
+    'Altamira (Rancho de José Granados)': 950000,
+    'Alto de Altamira': 1000000,
+    'Ampliación 20 de Noviembre': 850000,
+    'Ampliación Colonia del Chorrito': 700000,
+    'Ampliación las Estacas (Fuerte Apache)': 650000,
+    'Bella Vista de Santa María': 900000,
+    'Botija': 600000,
+    'Buenavista de Parangueo': 620000,
+    'Cahuageo': 580000,
+    'Camembaro': 770000,
+    'Carmelita Grande (La Macarena)': 1300000,
+    'Carmelitas Chico': 1150000,
+    'Casas Blancas': 780000,
+    'CERESO 1000': 500000,
+    'Cerritos': 640000,
+    'Cerro Blanco': 820000,
+    'Cerro Colorado': 890000,
+    'Cerro Prieto del Carmen': 930000,
+    'Changueo': 670000,
+    'Charco de Pantoja': 560000,
+    'Charco de Parangueo': 600000,
+    'Chicamito': 730000,
+    'Coalanda': 680000,
+    'Colonia Benito Juárez': 850000,
+    'Colonia de Guadalupe (Guadalupe de Copales)': 810000,
+    'Colonia el Calvario': 790000,
+    'Colonia el Triángulo': 830000,
+    'Colonia Emiliano Zapata (La Nopalera)': 920000,
+    'Colonia Hoya de Álvarez': 700000,
+    'Colonia Nueva de Guantes': 640000,
+    'Colonia Nueva de San Antonio de Mogotes': 690000,
+    'Colonia Primavera (San Ignacio)': 980000,
+    'Colonia Solidaridad': 760000,
+    'Copales': 650000,
+    'Crucero de Mogotes': 630000,
+    'Crucitas': 600000,
+    'Cuadrilla de Andaracua': 720000,
+    'Don Nicolás Vargas': 670000,
+    'Dotación Hoya de Álvarez (La Tortuga)': 690000,
+    'Duranes de Abajo': 710000,
+    'Duranes de Arriba': 720000,
+    'Duranes de Enmedio': 700000,
+    'El Armadillo': 740000,
+    'El Borrego': 730000,
+    'El Brazo': 750000,
+    'El Cañón': 690000,
+    'El Cenegal': 1200000,
+    'El Cerrito Colorado': 760000,
+    'El Chiqueo': 700000,
+    'El Circuito': 810000,
+    'El Jacalito': 720000,
+    'El Jagüey': 680000,
+    'El Molinito': 710000,
+    'El Mosco': 700000,
+    'El Motivo (El Carrizal)': 680000,
+    'El Nacimiento': 670000,
+    'Morelos': 740000,
+    'La Haciendita': 730000,
+    '20 de Noviembre': 750000,
+    '7 Luminarias': 780000,
+    'Camembaro': 770000,
+    'Jarrón Azul': 765000,
+    'Miravalle': 810000,
+    'Labradores': 740000,
+    'Isabel la Católica': 760000,
+    'Solidaridad': 745000,
+    'Los Pinos': 735000,
+    'El Carmen': 720000,
+    'La Esperanza': 730000,
+    'Ranchos Unidos': 700000,
+    'INFONAVIT San José': 710000,
+    'INFONAVIT Las Arboledas': 715000,
+    'Santa Elena Norte': 730000,
+    'Santa Elena Sur': 740000,
+    'Santa Catarina': 725000,
+    'La Valenciana': 780000,
+    'Colonia Obrera': 690000,
+    'Colonia del Bosque': 770000,
+    'Colonia Los Ángeles': 750000,
+    'Colonia Linda Vista': 775000
+}
+
+# Generamos un DataFrame con datos simulados para entrenamiento
+# Variables: Colonia (categorical), Pisos, Recámaras, Baños, Cochera, Acabados, Metros Cuadrados
+np.random.seed(42)
+
+def generar_datos(n=500):
+    colonias = list(colonias_precios.keys())
+    acabados = ['Económico', 'Estándar', 'Lujo']
+    data = []
+    for _ in range(n):
+        colonia = np.random.choice(colonias)
+        base_price = colonias_precios[colonia]
+
+        pisos = np.random.choice([1, 2])
+        recamaras = np.random.randint(1, 6)
+        baños = np.random.randint(1, 5)
+        cochera = np.random.randint(0, 3)
+        acabado = np.random.choice(acabados)
+        metros = np.random.randint(60, 251)
+
+        # Modificadores de precio
+        mod_pisos = pisos * 0.3
+        mod_recamaras = recamaras * 0.25
+        mod_baños = baños * 0.2
+        mod_cochera = cochera * 0.15
+        mod_acabado = {'Económico': 0.8, 'Estándar': 1.0, 'Lujo': 1.4}[acabado]
+        mod_metros = metros / 1000  # precio por m2
+
+        precio = base_price * (mod_pisos + mod_recamaras + mod_baños + mod_cochera) * mod_acabado + metros * 3500
+        precio = max(precio, 500000)  # mínimo
+
+        data.append({
+            'Colonia': colonia,
+            'Pisos': pisos,
+            'Recamaras': recamaras,
+            'Baños': baños,
+            'Cochera': cochera,
+            'Acabados': acabado,
+            'MetrosCuadrados': metros,
+            'Precio': precio
+        })
+    return pd.DataFrame(data)
+
+df = generar_datos()
+
+# Modelo: regresión lineal con preprocesamiento
+categorical_features = ['Colonia', 'Acabados']
+numeric_features = ['Pisos', 'Recamaras', 'Baños', 'Cochera', 'MetrosCuadrados']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features),
+        ('num', 'passthrough', numeric_features)
+    ]
+)
+
+model = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('regressor', LinearRegression())
+])
+
+X = df[categorical_features + numeric_features]
+y = df['Precio']
+
+model.fit(X, y)
+
+# ----------------------
+# Aplicación Tkinter
+# ----------------------
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Predicción de Precio de Vivienda - Valle de Santiago")
+        self.geometry("900x700")
+        self.resizable(False, False)
+
+        self.create_widgets()
+        self.create_graph_area()
+        self.plot_histogram()
+
+    def create_widgets(self):
+        frame = ttk.Frame(self)
+        frame.pack(padx=10, pady=10, fill='x')
+
+        # Colonia
+        ttk.Label(frame, text="Colonia:").grid(row=0, column=0, sticky='w')
+        self.colonia_cb = ttk.Combobox(frame, values=sorted(list(colonias_precios.keys())), state='readonly')
+        self.colonia_cb.grid(row=0, column=1, sticky='ew')
+        self.colonia_cb.current(0)
+
+        # Pisos
+        ttk.Label(frame, text="Número de Pisos:").grid(row=1, column=0, sticky='w')
+        self.pisos_spin = ttk.Spinbox(frame, from_=1, to=3, width=5)
+        self.pisos_spin.grid(row=1, column=1, sticky='w')
+        self.pisos_spin.set(1)
+
+        # Recámaras
+        ttk.Label(frame, text="Número de Recámaras:").grid(row=2, column=0, sticky='w')
+        self.recamaras_spin = ttk.Spinbox(frame, from_=1, to=10, width=5)
+        self.recamaras_spin.grid(row=2, column=1, sticky='w')
+        self.recamaras_spin.set(3)
+
+        # Baños
+        ttk.Label(frame, text="Número de Baños:").grid(row=3, column=0, sticky='w')
+        self.banos_spin = ttk.Spinbox(frame, from_=1, to=10, width=5)
+        self.banos_spin.grid(row=3, column=1, sticky='w')
+        self.banos_spin.set(2)
+
+        # Cochera
+        ttk.Label(frame, text="Número de Cocheras:").grid(row=4, column=0, sticky='w')
+        self.cochera_spin = ttk.Spinbox(frame, from_=0, to=5, width=5)
+        self.cochera_spin.grid(row=4, column=1, sticky='w')
+        self.cochera_spin.set(1)
+
+        # Acabados
+        ttk.Label(frame, text="Tipo de Acabados:").grid(row=5, column=0, sticky='w')
+        self.acabados_cb = ttk.Combobox(frame, values=['Económico', 'Estándar', 'Lujo'], state='readonly')
+        self.acabados_cb.grid(row=5, column=1, sticky='ew')
+        self.acabados_cb.current(1)
+
+        # Metros cuadrados
+        ttk.Label(frame, text="Metros cuadrados:").grid(row=6, column=0, sticky='w')
+        self.metros_entry = ttk.Entry(frame)
+        self.metros_entry.grid(row=6, column=1, sticky='ew')
+        self.metros_entry.insert(0, "100")
+
+        # Botón de predicción
+        self.pred_btn = ttk.Button(frame, text="Predecir Precio", command=self.predict)
+        self.pred_btn.grid(row=7, column=0, columnspan=2, pady=10)
+
+        # Resultado
+        self.result_label = ttk.Label(frame, text="", font=("Arial", 14, "bold"), foreground='green')
+        self.result_label.grid(row=8, column=0, columnspan=2, pady=10)
+
+        # Separador
+        ttk.Separator(self, orient='horizontal').pack(fill='x', pady=10)
+
+        # Botones gráficos
+        graph_frame = ttk.Frame(self)
+        graph_frame.pack(padx=10, pady=5, fill='x')
+
+        ttk.Label(graph_frame, text="Análisis de datos (minería):").grid(row=0, column=0, sticky='w')
+
+        self.btn_hist = ttk.Button(graph_frame, text="Histograma Precios", command=self.plot_histogram)
+        self.btn_hist.grid(row=0, column=1, padx=5)
+
+        self.btn_scatter_rec = ttk.Button(graph_frame, text="Precio vs Recámaras", command=self.plot_scatter_rec)
+        self.btn_scatter_rec.grid(row=0, column=2, padx=5)
+
+        self.btn_scatter_pisos = ttk.Button(graph_frame, text="Precio vs Pisos", command=self.plot_scatter_pisos)
+        self.btn_scatter_pisos.grid(row=0, column=3, padx=5)
+
+        self.btn_box_acabados = ttk.Button(graph_frame, text="Boxplot Precio vs Acabados", command=self.plot_box_acabados)
+        self.btn_box_acabados.grid(row=0, column=4, padx=5)
+
+    def create_graph_area(self):
+        self.fig, self.ax = plt.subplots(figsize=(8,4))
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.canvas.get_tk_widget().pack(padx=10, pady=5)
+
+    def validate_inputs(self):
+        try:
+            metros = float(self.metros_entry.get())
+            if metros < 20 or metros > 1000:
+                messagebox.showerror("Error", "Metros cuadrados debe estar entre 20 y 1000.")
+                return None
+        except:
+            messagebox.showerror("Error", "Metros cuadrados debe ser un número válido.")
+            return None
+
+        return metros
+
+    def predict(self):
+        metros = self.validate_inputs()
+        if metros is None:
+            return
+
+        data_pred = {
+            'Colonia': self.colonia_cb.get(),
+            'Pisos': int(self.pisos_spin.get()),
+            'Recamaras': int(self.recamaras_spin.get()),
+            'Baños': int(self.banos_spin.get()),
+            'Cochera': int(self.cochera_spin.get()),
+            'Acabados': self.acabados_cb.get(),
+            'MetrosCuadrados': metros
+        }
+
+        df_pred = pd.DataFrame([data_pred])
+        precio_pred = model.predict(df_pred)[0]
+
+        self.result_label.config(text=f"Precio estimado: ${precio_pred:,.2f} MXN")
+
+    # Gráficos de minería de datos
+
+    def plot_histogram(self):
+        self.ax.clear()
+        self.ax.hist(df['Precio'], bins=30, color='skyblue', edgecolor='black')
+        self.ax.set_title("Histograma de Precios de Viviendas")
+        self.ax.set_xlabel("Precio (MXN)")
+        self.ax.set_ylabel("Número de viviendas")
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    def plot_scatter_rec(self):
+        self.ax.clear()
+        self.ax.scatter(df['Recamaras'], df['Precio'], alpha=0.6, color='orange', edgecolors='k')
+        self.ax.set_title("Precio vs Número de Recámaras")
+        self.ax.set_xlabel("Recámaras")
+        self.ax.set_ylabel("Precio (MXN)")
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    def plot_scatter_pisos(self):
+        self.ax.clear()
+        self.ax.scatter(df['Pisos'], df['Precio'], alpha=0.6, color='green', edgecolors='k')
+        self.ax.set_title("Precio vs Número de Pisos")
+        self.ax.set_xlabel("Pisos")
+        self.ax.set_ylabel("Precio (MXN)")
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    def plot_box_acabados(self):
+        self.ax.clear()
+        categories = ['Económico', 'Estándar', 'Lujo']
+        data_to_plot = [df[df['Acabados']==cat]['Precio'] for cat in categories]
+        self.ax.boxplot(data_to_plot, labels=categories, patch_artist=True,
+                        boxprops=dict(facecolor='lightcoral', color='red'),
+                        medianprops=dict(color='yellow'))
+        self.ax.set_title("Distribución de Precio según Acabados")
+        self.ax.set_ylabel("Precio (MXN)")
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
+
